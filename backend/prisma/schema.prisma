@@ -1,0 +1,206 @@
+datasource db {
+    provider = "sqlite"
+    url      = "file:./dev.db"
+  }
+  
+  generator client {
+    provider             = "prisma-client-py"
+    recursive_type_depth = 5
+  }
+  
+  model User {
+    id                Int       @id @default(autoincrement())
+    email             String    @unique
+    password          String
+    role              String    // "patient", "doctor", "admin"
+    name              String?
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+    
+    // Profile fields
+    age               Int?
+    sex               String?
+    phone             String?
+    address           String?
+    profilePicture    String?
+    
+    // Relations
+    doctorProfile     DoctorProfile?
+    appointmentsAsPatient Appointment[] @relation("PatientAppointments")
+    appointmentsAsDoctor  Appointment[] @relation("DoctorAppointments")
+    sentMessages      Chat[]    @relation("SentMessages")
+    receivedMessages  Chat[]    @relation("ReceivedMessages")
+    reports           Report[]
+    reportAccess      ReportAccess[]
+    xrays             XRayReport[]
+    xrayAccess        XRayAccess[]
+    
+    reviewsWritten    Review[]  @relation("WrittenReviews")
+    reviewsReceived   Review[]  @relation("ReceivedReviews")
+    
+    // Prescriptions
+    prescriptionsWritten  Prescription[] @relation("PrescriptionsWritten")
+    prescriptionsReceived Prescription[] @relation("PrescriptionsReceived")
+  
+    // Family
+    familyMembers     FamilyMember[]
+  }
+
+  model Prescription {
+    id            Int      @id @default(autoincrement())
+    medicines     String   // Stored as JSON string
+    pharmacyName  String
+    diagnosis     String?
+    status        String   @default("pending") // pending, ordered, delivered
+    createdAt     DateTime @default(now())
+
+    doctor        User     @relation("PrescriptionsWritten", fields: [doctorId], references: [id])
+    doctorId      Int
+    patient       User     @relation("PrescriptionsReceived", fields: [patientId], references: [id])
+    patientId     Int
+  }
+  
+  model FamilyMember {
+    id        Int      @id @default(autoincrement())
+    name      String
+    relation  String
+    age       Int
+    sex       String
+    profilePicture String?
+
+    // Independent Access
+    username     String?   @unique
+    password     String?
+    allowLogin   Boolean   @default(false)
+
+    guardianId Int
+    guardian   User    @relation(fields: [guardianId], references: [id])
+
+    appointments Appointment[]
+    reports      Report[]
+    xrays        XRayReport[]
+    chats        Chat[]
+  }
+  
+  model DoctorProfile {
+    id                Int      @id @default(autoincrement())
+    userId            Int      @unique
+    user              User     @relation(fields: [userId], references: [id])
+    licenseNumber     String
+    specialization    String
+    verificationStatus String  @default("pending") // "pending", "verified", "banned"
+    bio               String?
+    experience        Int?
+    rating            Float    @default(0.0)
+    reviewCount       Int      @default(0)
+    location          String?
+    isGeneralPractitioner Boolean @default(false)
+  }
+  
+  model Appointment {
+    id        Int      @id @default(autoincrement())
+    date      DateTime
+    status    String   @default("pending") // "pending", "confirmed", "cancelled", "completed"
+    reason    String?
+    
+    patientId Int
+    patient   User     @relation("PatientAppointments", fields: [patientId], references: [id])
+    
+    familyMemberId Int?
+    familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id])
+    
+    doctorId  Int
+    doctor    User     @relation("DoctorAppointments", fields: [doctorId], references: [id])
+    
+    createdAt DateTime @default(now())
+  }
+  
+  model Chat {
+    id        Int      @id @default(autoincrement())
+    message   String
+    timestamp DateTime @default(now())
+    isRead    Boolean  @default(false)
+    
+    senderId  Int
+    sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+    
+    receiverId Int
+    receiver   User    @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  
+    familyMemberId Int?
+    familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id])
+  }
+  
+  model Report {
+    id        Int      @id @default(autoincrement())
+    title     String
+    filePath  String
+    summary   String?  // AI Generated Summary
+    uploadedAt DateTime @default(now())
+    
+    patientId Int
+    patient   User     @relation(fields: [patientId], references: [id])
+  
+    familyMemberId Int?
+    familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id])
+    
+    accessList ReportAccess[]
+  }
+  
+  model ReportAccess {
+    id        Int      @id @default(autoincrement())
+    reportId  Int
+    report    Report   @relation(fields: [reportId], references: [id])
+    
+    doctorId  Int
+    doctor    User     @relation(fields: [doctorId], references: [id])
+    
+    grantedAt DateTime @default(now())
+    
+    @@unique([reportId, doctorId])
+  }
+  
+  model XRayReport {
+    id        Int      @id @default(autoincrement())
+    type      String   // "fracture" or "tb"
+    prediction String  // "Positive" or "Negative"
+    confidence String
+    imagePath String   // Path to original image
+    heatmapPath String? // Path to processed image
+    features  String   // JSON string of features
+    createdAt DateTime @default(now())
+    
+    patientId Int
+    patient   User     @relation(fields: [patientId], references: [id])
+  
+    familyMemberId Int?
+    familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id])
+    
+    accessList XRayAccess[]
+  }
+  
+  model XRayAccess {
+    id        Int      @id @default(autoincrement())
+    xrayId    Int
+    xray      XRayReport @relation(fields: [xrayId], references: [id])
+    
+    doctorId  Int
+    doctor    User     @relation(fields: [doctorId], references: [id])
+    
+    grantedAt DateTime @default(now())
+    
+    @@unique([xrayId, doctorId])
+  }
+  
+  model Review {
+    id        Int      @id @default(autoincrement())
+    rating    Int      // 1-5
+    comment   String?
+    createdAt DateTime @default(now())
+    
+    patientId Int
+    patient   User     @relation("WrittenReviews", fields: [patientId], references: [id])
+    
+    doctorId  Int
+    doctor    User     @relation("ReceivedReviews", fields: [doctorId], references: [id])
+  }

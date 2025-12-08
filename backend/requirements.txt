@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+prisma
+python-jose[cryptography]
+bcrypt
+python-multipart
+xgboost
+scikit-learn
+opencv-python
+pillow
+numpy
+email-validator
+pypdf
+requests
+sentence-transformers
